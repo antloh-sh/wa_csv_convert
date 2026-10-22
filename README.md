@@ -23,5 +23,5 @@ The generated contacts CSV matches the format required by the [WhatsApp Queue Se
 
 ```csv
 Name,ContactNumber
-ALBERT S/O C V GOMEZ (ALBERT GOMEZ),6598911950
-ANANTHAN S/O SHANMUGAM,6596673039
+ALBERT,6588911900
+ANANTHAN,6596693033
