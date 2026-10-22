@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Activity Registration Report → WhatsApp Queue Sender CSV</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg:#f5f7fa; --card:#fff; --border:#dfe3e8; --text:#1f2933; --muted:#6b7280;
+    --accent:#2563eb; --accent-hover:#1d4ed8; --ok:#16a34a; --warn:#d97706; --err:#dc2626;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.5}
+  .wrap{max-width:1000px;margin:0 auto;padding:24px 16px 64px}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  .sub{color:var(--muted);margin:0 0 24px;font-size:.92rem}
+  .sub a{color:var(--accent);text-decoration:none}
+  .sub a:hover{text-decoration:underline}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px}
+  .dropzone{border:2px dashed var(--border);border-radius:10px;padding:32px 16px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+  .dropzone.dragover{border-color:var(--accent);background:#eff6ff}
+  .dropzone p{margin:6px 0}
+  .dropzone .hint{color:var(--muted);font-size:.85rem}
+  .btn{display:inline-block;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:.95rem;cursor:pointer;text-decoration:none}
+  .btn:hover{background:var(--accent-hover)}
+  .btn:disabled{background:#9ca3af;cursor:not-allowed}
+  .btn.secondary{background:transparent;color:var(--accent);border:1px solid var(--accent)}
+  .btn.secondary:hover{background:#eff6ff}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:16px}
+  .status{font-size:.9rem;color:var(--muted)}
+  .status.error{color:var(--err)} .status.ok{color:var(--ok)}
+  h2{font-size:1.05rem;margin:0 0 12px}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+  th{background:#f8fafc;font-weight:600;color:var(--muted);position:sticky;top:0}
+  .table-scroll{max-height:360px;overflow:auto;border:1px solid var(--border);border-radius:8px}
+  .pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.78rem;font-weight:600}
+  .pill.warn{background:#fef3c7;color:var(--warn)} .pill.err{background:#fee2e2;color:var(--err)} .pill.ok{background:#dcfce7;color:var(--ok)}
+  .summary{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px}
+  .stat{font-size:.9rem} .stat b{display:block;font-size:1.4rem}
+  .hidden{display:none}
+  code{background:#f1f5f9;padding:1px 5px;border-radius:4px;font-size:.85em}
+  .note{font-size:.82rem;color:var(--muted);margin-top:8px}
+  .privacy{background:#fef3c7;border:1px solid #fcd34d;color:#92400e;border-radius:8px;padding:10px 14px;font-size:.85rem;margin-bottom:16px}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Activity Registration Report → WhatsApp Queue Sender CSV</h1>
+  <p class="sub">
+    Convert the Activity Registration Report (.xlsx) into a CSV for the
+    <a href="https://github.com/antloh-sh/WhatsApp-Sender" target="_blank" rel="noopener">WhatsApp Queue Sender</a>.
+    Output header is <code>Name,ContactNumber</code> with <code>65</code>-prefixed mobile numbers. Everything runs in your browser — nothing is uploaded.
+  </p>
+
+  <div class="card">
+    <div id="dropzone" class="dropzone">
+      <p><strong>Click to choose an Excel file</strong> or drag &amp; drop here</p>
+      <p class="hint">Supported: .xlsx, .xls, .csv</p>
+      <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
+    </div>
+    <div class="toolbar">
+      <button id="downloadBtn" class="btn" disabled>Download WhatsApp Sender CSV</button>
+      <button id="resetBtn" class="btn secondary" disabled>Reset</button>
+      <span id="status" class="status"></span>
+    </div>
+  </div>
+
+  <!-- Output preview -->
+  <div id="outputSection" class="card hidden">
+    <h2>Output preview (WhatsApp Queue Sender CSV)</h2>
+    <div class="summary" id="summary"></div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Name</th><th>ContactNumber</th></tr></thead>
+        <tbody id="outputBody"></tbody>
+      </table>
+    </div>
+    <p class="note">CSV header: <code>Name,ContactNumber</code>. ContactNumber values are strings like <code>6598911950</code>. Field1–Field3 are optional in the sender and are omitted here.</p>
+  </div>
+
+  <!-- Ignored rows -->
+  <div id="ignoredSection" class="card hidden">
+    <h2>Ignored rows</h2>
+    <div class="privacy">⚠️ This report includes NRIC. It is generated in your browser and never uploaded, but the downloaded file is sensitive — delete it after use.</div>
+    <div class="btn-row">
+      <button id="downloadIgnoredBtn" class="btn secondary">Download ignored rows CSV</button>
+    </div>
+    <p class="note" id="ignoredNote"></p>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>S/No.</th><th>Name</th><th>NRIC</th><th>Contact No. (original)</th><th>Reason</th></tr>
+        </thead>
+        <tbody id="ignoredBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const fileInput          = document.getElementById("fileInput");
+  const dropzone           = document.getElementById("dropzone");
+  const downloadBtn        = document.getElementById("downloadBtn");
+  const downloadIgnoredBtn = document.getElementById("downloadIgnoredBtn");
+  const resetBtn           = document.getElementById("resetBtn");
+  const statusEl           = document.getElementById("status");
+
+  const outputSection = document.getElementById("outputSection");
+  const outputBody    = document.getElementById("outputBody");
+  const summaryEl     = document.getElementById("summary");
+
+  const ignoredSection = document.getElementById("ignoredSection");
+  const ignoredBody    = document.getElementById("ignoredBody");
+  const ignoredNote    = document.getElementById("ignoredNote");
+
+  let contactsCsvUrl = null;
+  let ignoredCsvUrl  = null;
+
+  // ---------- helpers ----------
+  function setStatus(msg, kind) {
+    statusEl.textContent = msg || "";
+    statusEl.className = "status" + (kind ? " " + kind : "");
+  }
+  function revokeUrls() {
+    if (contactsCsvUrl) { URL.revokeObjectURL(contactsCsvUrl); contactsCsvUrl = null; }
+    if (ignoredCsvUrl)  { URL.revokeObjectURL(ignoredCsvUrl);  ignoredCsvUrl  = null; }
+  }
+  function csvEscape(value) {
+    const s = String(value == null ? "" : value);
+    if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  function toCsv(rows) { return rows.map(r => r.map(csvEscape).join(",")).join("\r\n"); }
+  function normHeader(s) { return String(s == null ? "" : s).replace(/\s+/g," ").trim().toLowerCase(); }
+
+  // Extract the first mobile number from a Contact No. cell.
+  //   - no (M) at all AND has (H)  -> "No mobile (H only)"
+  //   - no (M) at all AND empty    -> "No contact number"
+  //   - no (M) at all otherwise    -> "No (M) mobile number"
+  //   - first (M): strip non-digits; require exactly 8 digits
+  function extractMobile(raw) {
+    const original = String(raw == null ? "" : raw);
+    const text = original.replace(/<br\s*\/?>/gi, ",").replace(/\r?\n/g, ",");
+
+    const mobileRe = /([0-9][0-9\s\-]*)\s*\(\s*M\s*\)/gi;
+    let match; const mobiles = [];
+    while ((match = mobileRe.exec(text)) !== null) mobiles.push(match[1]);
+
+    if (mobiles.length === 0) {
+      const hasH = /\(\s*H\s*\)/i.test(text);
+      if (hasH) return { ok:false, reason:"No mobile (H only)" };
+      if (!text.trim()) return { ok:false, reason:"No contact number" };
+      return { ok:false, reason:"No (M) mobile number" };
+    }
+    const digits = mobiles[0].replace(/\D/g, "");
+    if (digits.length !== 8) {
+      return { ok:false, reason:"Invalid mobile number (" + digits.length + " digits)" };
+    }
+    return { ok:true, phone:"65" + digits };
+  }
+
+  // Auto-detect header row: needs Name + Contact No. (S/No. and NRIC optional)
+  function findHeaderRow(rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || [];
+      let colName=-1, colContact=-1, colSNo=-1, colNric=-1;
+      for (let j = 0; j < row.length; j++) {
+        const h = normHeader(row[j]);
+        if (h === "s/no." || h === "s/no" || h === "s/n" || h === "sno" || h === "s no.") colSNo = j;
+        if (h === "name") colName = j;
+        if (h === "contact no." || h === "contact no" || h === "contact number" || h === "mobile no.") colContact = j;
+        if (h === "nric" || h === "nric no." || h === "nric no") colNric = j;
+      }
+      if (colName !== -1 && colContact !== -1) {
+        return { headerRowIndex:i, colName, colContact, colSNo, colNric };
+      }
+    }
+    return null;
+  }
+
+  // ---------- core processing ----------
+  function processWorkbook(arrayBuffer) {
+    const wb = XLSX.read(arrayBuffer, { type:"array" });
+    const sheetName = wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+    if (!ws) throw new Error("No sheet found in file.");
+
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:"", raw:false, blankrows:false });
+
+    const header = findHeaderRow(rows);
+    if (!header) throw new Error('Could not find header row (need columns "Name" and "Contact No.").');
+
+    const outputRows = [];   // [ [Name, Phone], ... ]
+    const ignoredRows = [];  // { sNo, name, nric, original, reason }
+    let dataRowCount = 0;
+
+    for (let i = header.headerRowIndex + 1; i < rows.length; i++) {
+      const row = rows[i] || [];
+      const nameRaw    = row[header.colName];
+      const contactRaw = row[header.colContact];
+      const sNoRaw     = header.colSNo  !== -1 ? row[header.colSNo]  : "";
+      const nricRaw    = header.colNric !== -1 ? row[header.colNric] : "";
+
+      const name    = String(nameRaw    == null ? "" : nameRaw   ).trim();
+      const contact = String(contactRaw == null ? "" : contactRaw).trim();
+      const nric    = String(nricRaw    == null ? "" : nricRaw   ).trim();
+
+      if (!name && !contact) continue; // skip fully blank rows
+      dataRowCount++;
+
+      if (!name) {
+        ignoredRows.push({ sNo:String(sNoRaw).trim(), name:"(blank name)", nric, original:contact, reason:"Missing name" });
+        continue;
+      }
+
+      const result = extractMobile(contact);
+      if (!result.ok) {
+        ignoredRows.push({ sNo:String(sNoRaw).trim(), name, nric, original:contact, reason:result.reason });
+        continue;
+      }
+      outputRows.push([name, result.phone]);
+    }
+
+    return { outputRows, ignoredRows, dataRowCount, sheetName };
+  }
+
+  // ---------- rendering ----------
+  function render(result) {
+    outputBody.innerHTML = ""; ignoredBody.innerHTML = ""; summaryEl.innerHTML = "";
+    revokeUrls();
+
+    const { outputRows, ignoredRows, dataRowCount } = result;
+
+    // Summary stats
+    [
+      { label:"Rows with data",     value:dataRowCount },
+      { label:"Kept (with mobile)", value:outputRows.length, color:"var(--ok)" },
+      { label:"Ignored",            value:ignoredRows.length, color: ignoredRows.length ? "var(--warn)" : null },
+    ].forEach(s => {
+      const d = document.createElement("div"); d.className = "stat";
+      const b = document.createElement("b"); b.textContent = s.value;
+      if (s.color) b.style.color = s.color;
+      d.appendChild(b); d.appendChild(document.createTextNode(s.label));
+      summaryEl.appendChild(d);
+    });
+
+    // Output preview + CSV
+    if (outputRows.length) {
+      const frag = document.createDocumentFragment();
+      outputRows.forEach(r => {
+        const tr = document.createElement("tr");
+        const td1 = document.createElement("td"); td1.textContent = r[0];
+        const td2 = document.createElement("td"); td2.textContent = r[1];
+        tr.appendChild(td1); tr.appendChild(td2); frag.appendChild(tr);
+      });
+      outputBody.appendChild(frag);
+      outputSection.classList.remove("hidden");
+      downloadBtn.disabled = false;
+
+      const csv  = toCsv([["Name","ContactNumber"]].concat(outputRows));
+      const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+      contactsCsvUrl = URL.createObjectURL(blob);
+    } else {
+      outputSection.classList.add("hidden");
+      downloadBtn.disabled = true;
+    }
+
+    // Ignored preview + CSV
+    if (ignoredRows.length) {
+      ignoredNote.textContent = "These rows were excluded from the WhatsApp CSV. NRIC is shown here and in the downloaded report.";
+      const frag = document.createDocumentFragment();
+      ignoredRows.forEach(r => {
+        const tr = document.createElement("tr");
+        const tdS = document.createElement("td"); tdS.textContent = r.sNo;
+        const tdN = document.createElement("td"); tdN.textContent = r.name;
+        const tdI = document.createElement("td"); tdI.textContent = r.nric;
+        const tdC = document.createElement("td"); tdC.textContent = r.original;
+        const tdR = document.createElement("td");
+        const pill = document.createElement("span");
+        pill.className = "pill " + (/^(No mobile|No contact)/.test(r.reason) ? "warn" : "err");
+        pill.textContent = r.reason;
+        tdR.appendChild(pill);
+        tr.appendChild(tdS); tr.appendChild(tdN); tr.appendChild(tdI); tr.appendChild(tdC); tr.appendChild(tdR);
+        frag.appendChild(tr);
+      });
+      ignoredBody.appendChild(frag);
+      ignoredSection.classList.remove("hidden");
+      downloadIgnoredBtn.disabled = false;
+
+      const ignoredCsvRows = [["S/No.","Name","NRIC","Contact No. (original)","Reason"]]
+        .concat(ignoredRows.map(r => [r.sNo, r.name, r.nric, r.original, r.reason]));
+      const iCsv  = toCsv(ignoredCsvRows);
+      const iBlob = new Blob([iCsv], { type:"text/csv;charset=utf-8;" });
+      ignoredCsvUrl = URL.createObjectURL(iBlob);
+    } else {
+      ignoredSection.classList.add("hidden");
+      downloadIgnoredBtn.disabled = true;
+    }
+  }
+
+  // ---------- file handling ----------
+  function handleFile(file) {
+    if (!file) return;
+    resetBtn.disabled = false;
+    setStatus("Reading " + file.name + "…");
+
+    const reader = new FileReader();
+    reader.onerror = () => setStatus("Failed to read file.", "error");
+    reader.onload = (e) => {
+      try {
+        const result = processWorkbook(e.target.result);
+        render(result);
+        setStatus(
+          "Done. " + result.outputRows.length + " kept, " + result.ignoredRows.length +
+          " ignored (sheet: " + result.sheetName + ").", "ok"
+        );
+      } catch (err) {
+        console.error(err);
+        setStatus("Error: " + (err && err.message ? err.message : "Could not process file."), "error");
+        outputSection.classList.add("hidden");
+        ignoredSection.classList.add("hidden");
+        downloadBtn.disabled = true;
+        downloadIgnoredBtn.disabled = true;
+        revokeUrls();
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  // Input
+  dropzone.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    handleFile(f);
+    fileInput.value = "";
+  });
+
+  // Drag & drop
+  ["dragenter","dragover"].forEach(ev =>
+    dropzone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.add("dragover"); })
+  );
+  ["dragleave","drop"].forEach(ev =>
+    dropzone.addEventListener(ev, (e) => { e.preventDefault(); e.stopPropagation(); dropzone.classList.remove("dragover"); })
+  );
+  dropzone.addEventListener("drop", (e) => {
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    handleFile(f);
+  });
+
+  // Downloads
+  downloadBtn.addEventListener("click", () => {
+    if (!contactsCsvUrl) return;
+    const a = document.createElement("a");
+    a.href = contactsCsvUrl; a.download = "whatsapp_queue_sender.csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  });
+  downloadIgnoredBtn.addEventListener("click", () => {
+    if (!ignoredCsvUrl) return;
+    const a = document.createElement("a");
+    a.href = ignoredCsvUrl; a.download = "ignored_rows.csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  });
+
+  // Reset
+  resetBtn.addEventListener("click", () => {
+    outputBody.innerHTML = ""; ignoredBody.innerHTML = ""; summaryEl.innerHTML = "";
+    outputSection.classList.add("hidden"); ignoredSection.classList.add("hidden");
+    downloadBtn.disabled = true; downloadIgnoredBtn.disabled = true; resetBtn.disabled = true;
+    revokeUrls(); setStatus("");
+  });
+})();
+</script>
+</body>
+</html>
